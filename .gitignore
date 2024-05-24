@@ -1,0 +1,17 @@
+.idea/
+job_name_mappings/*
+job_name_mappings_analysis/*
+venv/
+__pycache__
+logs/*
+logs_analysis/*
+attic/*
+run_*
+*egg-info
+*.csv
+*.zip
+storage_structure
+.coverage
+submit_*
+reanalyse_existing/*
+TODO
