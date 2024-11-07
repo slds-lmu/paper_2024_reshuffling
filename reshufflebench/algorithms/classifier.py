@@ -54,6 +54,13 @@ class Classifier(ABC):
         pass
 
     @abstractmethod
+    def get_configspace_search_space(self, **kwargs):
+        """
+        Get the configspace search space.
+        """
+        pass
+
+    @abstractmethod
     def get_internal_optuna_search_space(self, **kwargs):
         """
         Get the internal Optuna search space.
@@ -308,7 +315,7 @@ class Classifier(ABC):
         """
         if self.error_on_fit:
             warnings.warn(
-                "Classifier was not fitted successfully. Predicting class probabilities according to occurence in training data."
+                "Classifier was not fitted successfully. Predicting class probabilities according to occurrence in training data."
             )
             y_pred_proba = np.tile(self.labels_fraction, (len(x), 1))
         else:

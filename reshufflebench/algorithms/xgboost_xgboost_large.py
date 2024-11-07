@@ -2,6 +2,7 @@ import json
 from typing import List, Optional
 
 import numpy as np
+from ConfigSpace import ConfigurationSpace, Float, Integer
 from hebo.design_space import DesignSpace
 from optuna.distributions import FloatDistribution, IntDistribution
 from optuna.trial import Trial
@@ -71,6 +72,35 @@ class XGBoostLarge(Classifier):
         hebo_search_space = DesignSpace().parse(hebo_params)
         return hebo_search_space
 
+    def get_configspace_search_space(self, **kwargs):
+        """
+        Get the configspace search space.
+        """
+        cs = ConfigurationSpace(seed=self.seed)
+        max_depth = Integer(name="max_depth", bounds=[1, 11], log=True)
+        alpha = Float(name="alpha", bounds=[1e-8, 1e2], log=True)
+        lambda_ = Float(name="lambda", bounds=[1, 4], log=True)
+        eta = Float(name="eta", bounds=[1e-5, 0.7], log=True)
+        min_child_weight = Integer(name="min_child_weight", bounds=[1, 100], log=True)
+        subsample = (Float(name="subsample", bounds=[0.5, 1.0]),)
+        colsample_bylevel = (Float(name="colsample_bylevel", bounds=[0.5, 1.0]),)
+        colsample_bytree = (Float(name="colsample_bytree", bounds=[0.5, 1.0]),)
+        gamma = Float(name="gamma", bounds=[1e-8, 7], log=True)
+        cs.add(
+            [
+                max_depth,
+                alpha,
+                lambda_,
+                eta,
+                min_child_weight,
+                subsample,
+                colsample_bylevel,
+                colsample_bytree,
+                gamma,
+            ]
+        )
+        return cs
+
     def get_internal_optuna_search_space(self, **kwargs):
         """
         Get the internal Optuna search space.
@@ -81,13 +111,9 @@ class XGBoostLarge(Classifier):
             "lambda": FloatDistribution(low=1, high=4, step=None, log=True),
             "eta": FloatDistribution(low=1e-5, high=0.7, step=None, log=True),
             "min_child_weight": IntDistribution(low=1, high=100, step=1, log=True),
-            "subsample": FloatDistribution(low=0.5, high=1.0, step=None, log=False),
-            "colsample_bylevel": FloatDistribution(
-                low=0.5, high=1.0, step=None, log=False
-            ),
-            "colsample_bytree": FloatDistribution(
-                low=0.5, high=1.0, step=None, log=False
-            ),
+            "subsample": FloatDistribution(low=0.5, high=1.0, step=None),
+            "colsample_bylevel": FloatDistribution(low=0.5, high=1.0, step=None),
+            "colsample_bytree": FloatDistribution(low=0.5, high=1.0, step=None),
             "gamma": FloatDistribution(low=1e-8, high=7, step=None, log=True),
         }
         return internal_optuna_search_space

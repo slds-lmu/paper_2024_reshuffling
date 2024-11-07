@@ -7,7 +7,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--max_workers", type=int, default=10)
     parser.add_argument(
-        "--optimizer", type=str, choices=["hebo", "random"], required=True
+        "--optimizer",
+        type=str,
+        choices=["random", "hebo", "smac"],
+        required=True,
     )
     parser.add_argument(
         "--valid_type",
@@ -29,7 +32,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     results_subfolders = os.listdir("results")
-    if args.optimizer == "hebo":
+    if args.optimizer in ["hebo", "smac"]:
         valid_abbrev = {
             "cv": "_cv5r1_",
             "cv_repeated": "_cv5r5_",
@@ -40,7 +43,7 @@ if __name__ == "__main__":
         results_subfolders = [
             results_subfolder
             for results_subfolder in results_subfolders
-            if "hebo" in results_subfolder and valid in results_subfolder
+            if args.optimizer in results_subfolder and valid in results_subfolder
         ]
     else:
         valid_abbrev = {
@@ -53,7 +56,9 @@ if __name__ == "__main__":
         results_subfolders = [
             results_subfolder
             for results_subfolder in results_subfolders
-            if "hebo" not in results_subfolder and valid in results_subfolder
+            if "hebo" not in results_subfolder
+            and "smac" not in results_subfolder
+            and valid in results_subfolder
         ]
 
     file = "run_analyses.sh"

@@ -2,6 +2,7 @@ import json
 from typing import List, Optional
 
 import numpy as np
+from ConfigSpace import ConfigurationSpace, Float, Integer
 from hebo.design_space import DesignSpace
 from optuna.distributions import FloatDistribution, IntDistribution
 from optuna.trial import Trial
@@ -53,6 +54,18 @@ class XGBoost(Classifier):
         ]
         hebo_search_space = DesignSpace().parse(hebo_params)
         return hebo_search_space
+
+    def get_configspace_search_space(self, **kwargs):
+        """
+        Get the configspace search space.
+        """
+        cs = ConfigurationSpace(seed=self.seed)
+        max_depth = Integer(name="max_depth", bounds=[2, 12], log=True)
+        alpha = Float(name="alpha", bounds=[1e-8, 1.0], log=True)
+        lambda_ = Float(name="lambda", bounds=[1e-8, 1.0], log=True)
+        eta = Float(name="eta", bounds=[0.01, 0.3], log=True)
+        cs.add([max_depth, alpha, lambda_, eta])
+        return cs
 
     def get_internal_optuna_search_space(self, **kwargs):
         """

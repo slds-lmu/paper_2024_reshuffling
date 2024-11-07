@@ -17,6 +17,9 @@ if __name__ == "__main__":
         LearnerRandomCV,
         LearnerRandomHoldout,
         LearnerRandomRepeatedHoldout,
+        LearnerSmacCV,
+        LearnerSmacHoldout,
+        LearnerSmacRepeatedHoldout,
     )
     from reshufflebench.utils import str2bool
 
@@ -37,7 +40,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("--default", type=str2bool, default=False)
     parser.add_argument(
-        "--optimizer", type=str, default="random", choices=["random", "hebo"]
+        "--optimizer",
+        type=str,
+        default="random",
+        choices=["random", "hebo", "smac"],
     )
     parser.add_argument(
         "--data_id",
@@ -137,7 +143,7 @@ if __name__ == "__main__":
                 n_trials=args.n_trials,
                 seed=args.seed,
             )
-    else:
+    elif args.optimizer == "hebo":
         if args.valid_type == "cv":
             learner = LearnerHeboCV(
                 classifier=classifier,
@@ -179,5 +185,48 @@ if __name__ == "__main__":
                 n_trials=args.n_trials,
                 seed=args.seed,
             )
-
+    elif args.optimizer == "smac":
+        if args.valid_type == "cv":
+            learner = LearnerSmacCV(
+                classifier=classifier,
+                metric="auc",
+                data_id=args.data_id,
+                train_valid_size=args.train_valid_size,
+                reshuffle=args.reshuffle,
+                n_splits=args.n_splits,
+                n_repeats=args.n_repeats,
+                test_size=args.test_size,
+                add_valid_size=args.add_valid_size,
+                n_trials=args.n_trials,
+                seed=args.seed,
+            )
+        elif args.valid_type == "holdout":
+            learner = LearnerSmacHoldout(
+                classifier=classifier,
+                metric="auc",
+                data_id=args.data_id,
+                train_valid_size=args.train_valid_size,
+                reshuffle=args.reshuffle,
+                valid_frac=args.valid_frac,
+                test_size=args.test_size,
+                add_valid_size=args.add_valid_size,
+                n_trials=args.n_trials,
+                seed=args.seed,
+            )
+        else:
+            learner = LearnerSmacRepeatedHoldout(
+                classifier=classifier,
+                metric="auc",
+                data_id=args.data_id,
+                train_valid_size=args.train_valid_size,
+                reshuffle=args.reshuffle,
+                valid_frac=args.valid_frac,
+                n_repeats=args.n_repeats,
+                test_size=args.test_size,
+                add_valid_size=args.add_valid_size,
+                n_trials=args.n_trials,
+                seed=args.seed,
+            )
+    else:
+        raise ValueError("Invalid optimizer")
     learner.run()

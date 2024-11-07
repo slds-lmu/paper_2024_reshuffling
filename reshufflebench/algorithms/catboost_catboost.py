@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import numpy as np
 from catboost import CatBoostClassifier
+from ConfigSpace import ConfigurationSpace, Float, Integer
 from hebo.design_space import DesignSpace
 from optuna.distributions import FloatDistribution, IntDistribution
 from optuna.trial import Trial
@@ -52,6 +53,17 @@ class CatBoost(Classifier):
         hebo_search_space = DesignSpace().parse(hebo_params)
         return hebo_search_space
 
+    def get_configspace_search_space(self, **kwargs):
+        """
+        Get the configspace search space.
+        """
+        cs = ConfigurationSpace(seed=self.seed)
+        learning_rate = Float(name="learning_rate", bounds=[0.01, 0.3], log=True)
+        depth = Integer(name="depth", bounds=[2, 12], log=True)
+        l2_leaf_reg = Float(name="l2_leaf_reg", bounds=[0.5, 30], log=True)
+        cs.add([learning_rate, depth, l2_leaf_reg])
+        return cs
+
     def get_internal_optuna_search_space(self, **kwargs):
         """
         Get the internal Optuna search space.
@@ -89,7 +101,7 @@ class CatBoost(Classifier):
             l2_leaf_reg=self.l2_leaf_reg,
             verbose=False,
             allow_writing_files=False,
-            thread_count=16,
+            thread_count=1,
             # thread_count = 16 for some catboost runs with hebo, thread_count was set to 16 and HPO was run on a whole node with 16 threads, 128GB RAM to stay below 7 days of runtime
         )
 
@@ -129,7 +141,7 @@ class CatBoost(Classifier):
             l2_leaf_reg=self.l2_leaf_reg,
             verbose=False,
             allow_writing_files=False,
-            thread_count=16,
+            thread_count=1,
             # thread_count = 16 for some catboost runs with hebo, thread_count was set to 16 and HPO was run on a whole node with 16 threads, 128GB RAM to stay below 7 days of runtime
         )
 

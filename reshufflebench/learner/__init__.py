@@ -4,6 +4,9 @@ from .learner_hebo_repeatedholdout import LearnerHeboRepeatedHoldout
 from .learner_random_cv import LearnerRandomCV
 from .learner_random_holdout import LearnerRandomHoldout
 from .learner_random_repeatedholdout import LearnerRandomRepeatedHoldout
+from .learner_smac_cv import LearnerSmacCV
+from .learner_smac_holdout import LearnerSmacHoldout
+from .learner_smac_repeatedholdout import LearnerSmacRepeatedHoldout
 
 __all__ = [
     "LearnerHeboCV",
@@ -12,4 +15,7 @@ __all__ = [
     "LearnerRandomCV",
     "LearnerRandomHoldout",
     "LearnerRandomRepeatedHoldout",
+    "LearnerSmacCV",
+    "LearnerSmacHoldout",
+    "LearnerSmacRepeatedHoldout",
 ]

@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 import numpy as np
+from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
 from hebo.design_space import DesignSpace
 from optuna.distributions import (
     CategoricalDistribution,
@@ -62,6 +63,25 @@ class FunnelMLP(Classifier):
         hebo_search_space = DesignSpace().parse(hebo_params)
         return hebo_search_space
 
+    def get_configspace_search_space(self, **kwargs):
+        """
+        Get the configspace search space.
+        """
+        n_train_samples = kwargs["n_train_samples"]
+        # maximum batch size is the largest power of 2 that is smaller than the number of training samples
+        max_batch_size_log2 = int(np.log2(n_train_samples))
+        cs = ConfigurationSpace(seed=self.seed)
+        num_layers = Integer(name="num_layers", bounds=[1, 5])
+        max_units = Categorical(name="max_units", items=[2**i for i in range(6, 10)])
+        learning_rate = Float(name="learning_rate", bounds=[1e-4, 1e-1], log=True)
+        batch_size = Categorical(
+            name="batch_size", items=[2**i for i in range(4, max_batch_size_log2 + 1)]
+        )
+        momentum = Float(name="momentum", bounds=[0.1, 0.99])
+        alpha = Float(name="alpha", bounds=[1e-6, 1e-1], log=True)
+        cs.add([num_layers, max_units, learning_rate, batch_size, momentum, alpha])
+        return cs
+
     def get_internal_optuna_search_space(self, **kwargs):
         """
         Get the internal Optuna search space.
@@ -78,7 +98,7 @@ class FunnelMLP(Classifier):
             "batch_size": CategoricalDistribution(
                 choices=[2**i for i in range(4, max_batch_size_log2 + 1)]
             ),
-            "momentum": FloatDistribution(low=0.1, high=0.99, step=None, log=False),
+            "momentum": FloatDistribution(low=0.1, high=0.99, step=None),
             "alpha": FloatDistribution(low=1e-6, high=1e-1, step=None, log=True),
         }
         return internal_optuna_search_space

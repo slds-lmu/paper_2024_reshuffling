@@ -5,14 +5,19 @@ import os
 import warnings
 from typing import Dict, List, Optional
 
+import numdifftools
 import numpy as np
 import optuna
 import pandas as pd
+import scipy.optimize as opt
+import torch
 import tqdm
+from hebo.models.model_factory import get_model
 from scipy.stats import kendalltau
 
 from analyze.post_selector import PostSelector, PostSelectorNaive
 from analyze.utils import compute_overtuning
+from reshufflebench.algorithms import CatBoost, FunnelMLP, LogReg, XGBoost
 from reshufflebench.metrics import compute_metric
 from reshufflebench.utils import (
     NumpyArrayEncoder,
@@ -172,7 +177,7 @@ class ResultAnalyzer(object):
         self.results_post_selection = {}
 
         self.kendalls_tau_valid_test = {}
-        self.kendalls_tau_train_valid = {}
+        self.curvature = {}
         self.test_type_internal = None
 
     @property
@@ -449,22 +454,58 @@ class ResultAnalyzer(object):
                 columns.append(
                     f"user_attrs_{self.params['metric_to_cv_metric'][metric]}_valid"
                 )
+            if OPTIMIZER == "hebo":
+                columns.append("user_attrs_hebo_fallback_triggered")
+            elif OPTIMIZER == "smac":
+                columns.append("user_attrs_smac_fallback_triggered")
             results = results[columns]
-            results.columns = (
-                ["train", "valid", "test", "valid_train", "test_retrained"]
-                if self.valid_type == "holdout"
-                else [
-                    "train",
-                    "valid",
-                    "test",
-                    "valid_train",
-                    "test_retrained",
-                    "test_ensemble",
-                    "cv_valid",
-                ]
-            )
+            if self.valid_type == "holdout":
+                results.rename(
+                    columns={
+                        f"user_attrs_{metric}_train": "train",
+                        f"user_attrs_{metric}_valid": "valid",
+                        f"user_attrs_{metric}_test": "test",
+                        f"user_attrs_{metric}_valid_train": "valid_train",
+                        f"user_attrs_{metric}_test_retrained": "test_retrained",
+                    },
+                    inplace=True,
+                )
+            else:
+                results.rename(
+                    columns={
+                        f"user_attrs_{metric}_train": "train",
+                        f"user_attrs_{metric}_valid": "valid",
+                        f"user_attrs_{metric}_test": "test",
+                        f"user_attrs_{metric}_valid_train": "valid_train",
+                        f"user_attrs_{metric}_test_retrained": "test_retrained",
+                        f"user_attrs_{metric}_test_ensemble": "test_ensemble",
+                        f"user_attrs_{self.params['metric_to_cv_metric'][metric]}_valid": "cv_valid",
+                    },
+                    inplace=True,
+                )
+            if OPTIMIZER == "hebo":
+                results.rename(
+                    columns={
+                        "user_attrs_hebo_fallback_triggered": "hebo_fallback_triggered"
+                    },
+                    inplace=True,
+                )
+            elif OPTIMIZER == "smac":
+                results.rename(
+                    columns={
+                        "user_attrs_smac_fallback_triggered": "smac_fallback_triggered"
+                    },
+                    inplace=True,
+                )
             if self.params["metrics_direction"][metric] == "maximize":
-                for column in results.columns:
+                for column in list(
+                    set(results.columns)
+                    - {
+                        "hebo_fallback_triggered",
+                        "early_stopping_triggered",
+                        "smac_fallback_triggered",
+                    }
+                ):
                     if column == "cv_valid":
                         results[column] = (
                             results[column].apply(eval).apply(lambda x: [-y for y in x])
@@ -485,6 +526,143 @@ class ResultAnalyzer(object):
             for param in params:
                 results[param] = self.results[param]
             self.results_raw[metric] = results
+
+    def calculate_curvature(self) -> None:
+        """
+        Fit a GP on observed values and calculate some curvature metrics at the empirical optimum.
+        """
+        for metric in self.params["metrics"]:
+            dat = self.results_raw[metric]
+            relevant_columns_valid = [
+                column for column in dat.columns if "params_" in column
+            ] + ["valid"]
+            dat_valid = dat.loc[:, relevant_columns_valid]
+            dat_valid.rename(columns={"valid": "y"}, inplace=True)
+            X = dat_valid.drop(columns=["y"])
+            y = dat_valid["y"].values.reshape(-1, 1)
+            X.rename(
+                columns={column: column.replace("params_", "") for column in X.columns},
+                inplace=True,
+            )
+            if self.params["classifier"] == "logreg":
+                classifier = LogReg(self.params["seed"])
+                space = classifier.get_hebo_search_space()
+                bounds = [
+                    (space.paras[name].lb, space.paras[name].ub) for name in space.paras
+                ]
+            elif self.params["classifier"] == "funnel_mlp":
+                classifier = FunnelMLP(self.params["seed"])
+                n_train_samples = int(
+                    0.8 * self.params["train_valid_size"]
+                )  # Holdout 80/20 or 5-fold CV variants
+                space = classifier.get_hebo_search_space(
+                    n_train_samples=n_train_samples
+                )
+                bounds = [
+                    (space.paras[name].lb, space.paras[name].ub)
+                    for name in space.paras
+                    if not space.paras[name].is_categorical
+                ]
+            elif self.params["classifier"] == "xgboost":
+                classifier = XGBoost(self.params["seed"])
+                space = classifier.get_hebo_search_space()
+                bounds = [
+                    (space.paras[name].lb, space.paras[name].ub) for name in space.paras
+                ]
+            elif self.params["classifier"] == "catboost":
+                classifier = CatBoost(self.params["seed"])
+                space = classifier.get_hebo_search_space()
+                bounds = [
+                    (space.paras[name].lb, space.paras[name].ub) for name in space.paras
+                ]
+            # https://github.com/huawei-noah/HEBO/blob/c1c7d72b996a7d11eb2b86e25f21a174b0cc7bd4/HEBO/hebo/optimizers/hebo.py#L117
+            X, Xe = space.transform(X)
+            model_config = {
+                "lr": 0.01,
+                "num_epochs": 100,
+                "verbose": False,
+                "noise_lb": 8e-4,
+                "pred_likeli": False,
+            }
+            if space.num_categorical > 0:
+                model_config["num_uniqs"] = [
+                    len(space.paras[name].categories) for name in space.enum_names
+                ]
+            # try:
+            #    if y.min() <= 0:
+            #        y = torch.FloatTensor(power_transform(y / y.std(), method='yeo-johnson'))
+            #    else:
+            #        y = torch.FloatTensor(power_transform(y / y.std(), method='box-cox'))
+            #        if y.std() < 0.5:
+            #            y = torch.FloatTensor(power_transform(y / y.std(), method='yeo-johnson'))
+            #    if y.std() < 0.5:
+            #        raise RuntimeError('Power transformation failed')
+            #    model = get_model("gp", space.num_numeric, space.num_categorical, 1, **model_config)
+            #    model.fit(X, Xe, y)
+            # except:
+            y = torch.FloatTensor(y).clone()
+            model = get_model(
+                "gp", space.num_numeric, space.num_categorical, 1, **model_config
+            )
+            model.fit(X, Xe, y)
+
+            empirical_argmin = model.predict(X, Xe)[0].argmin()
+            X_argmin = X[empirical_argmin, :].unsqueeze(0)
+            Xe_argmin = Xe[empirical_argmin, :].unsqueeze(0)
+
+            def posterior_mean_wrapper(x, model, Xe_argmin):
+                x_tensor = torch.FloatTensor(x).unsqueeze(0).requires_grad_(True)
+                return model.predict(x_tensor, Xe_argmin)[0][0, 0].detach().numpy()
+
+            x0 = X[empirical_argmin, :].numpy()
+            result = opt.minimize(
+                posterior_mean_wrapper,
+                x0,
+                args=(model, Xe_argmin),
+                bounds=bounds,
+                method="Nelder-Mead",
+            )
+
+            x_optimal = result.x
+            hessian_function = numdifftools.Hessian(posterior_mean_wrapper)
+            hessian_optimal = hessian_function(x_optimal, model, Xe_argmin)
+
+            def make_psd(matrix):
+                eigenvalues, eigenvectors = np.linalg.eigh(matrix)
+                already_is_psd = np.all(eigenvalues >= 0)
+                eigenvalues[eigenvalues < 0] = 0
+                return (
+                    already_is_psd,
+                    eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T,
+                )
+
+            already_is_psd, hessian_optimal = make_psd(hessian_optimal)
+
+            det_hessian = np.linalg.det(hessian_optimal)
+            trace_hessian = np.trace(hessian_optimal)
+            eigenvalues_hessian = np.linalg.eigvals(hessian_optimal)
+            smallest_eigenvalue_hessian = np.min(eigenvalues_hessian)
+            biggest_eigenvalue_hessian = np.max(eigenvalues_hessian)
+
+            curvature_pd = pd.DataFrame(
+                {
+                    "det_hessian": [det_hessian],
+                    "trace_hessian": [trace_hessian],
+                    "smallest_eigenvalue_hessian": [smallest_eigenvalue_hessian],
+                    "biggest_eigenvalue_hessian": [biggest_eigenvalue_hessian],
+                    "already_is_psd": [already_is_psd],
+                    "gp_noise": [
+                        model.noise.item()
+                    ],  # homoscedastic observation variance (noise) from the GP
+                    "seed": [self.seed],
+                    "classifier": [self.params["classifier"]],
+                    "data_id": [self.params["data_id"]],
+                    "train_valid_size": [self.params["train_valid_size"]],
+                    "resampling": [self.params["resampling"]],
+                    "metric": [metric],
+                }
+            )
+            self.curvature.update({metric: curvature_pd})
 
     def calculate_kendalls_tau_valid_test(self) -> None:
         """
@@ -556,10 +734,7 @@ class ResultAnalyzer(object):
                 raise ValueError(
                     f"Number of trials does not match expected number of trials"
                 )
-            if post_selector.resolution_sparse:
-                iterations = list(range(9, len(results), 10))
-            else:
-                iterations = list(range(len(results)))
+            iterations = list(range(len(results)))
             for i in tqdm.tqdm(iterations):
                 selected.append(
                     post_selector.select(iteration=i, metric=metric, **kwargs)
@@ -596,22 +771,6 @@ class ResultAnalyzer(object):
                     ],
                 ]
                 results_tmp.rename(columns={self.test_type: "test"}, inplace=True)
-                # add additional iterationwise results
-                if post_selector.additional_iterationwise_results:
-                    for field in post_selector.additional_iterationwise_results:
-                        value = getattr(post_selector, field)
-                        if not isinstance(value, pd.DataFrame):
-                            raise ValueError(
-                                f"Additional iterationwise results must be a pd.DataFrame"
-                            )
-                        if "iteration" not in value.columns:
-                            raise ValueError(
-                                f"Additional iterationwise results must have a column 'iteration'"
-                            )
-                        # merge value into results by iteration
-                        results_tmp = results_tmp.merge(
-                            value, how="left", on="iteration", validate="1:1"
-                        )
                 if test_type == "test":
                     results_post_selection["test"][metric] = results_tmp
                 elif test_type == "test_retrained":
@@ -730,9 +889,11 @@ def analyze_results_basic(
 ) -> [pd.DataFrame, pd.DataFrame]:
     """
     Analyze the results of a study.
-    Create a results table with the raw results and further calculate Kendall's Tau between valid and test_type for test type "test" and "test_retrained".
+    Create a results table with the raw results and further calculates some estimates of the local curvature in the (validation) optimum and
+    Kendall's Tau between valid and test_type for test type "test" and "test_retrained".
     """
     results_raw_tmp = {}
+    curvature_tmp = {}
     kendalls_tau_valid_test_tmp = {"test": [], "test_retrained": []}
     analyzer = ResultAnalyzer(
         results_path=os.path.join(results_path, results_subfolder),
@@ -742,8 +903,10 @@ def analyze_results_basic(
     )
     analyzer.load(additional_file_types="none")
     analyzer.create_results_table_raw()
+    analyzer.calculate_curvature()
     for metric in METRICS:
         results_raw_tmp[metric] = analyzer.results_raw[metric]
+        curvature_tmp[metric] = analyzer.curvature[metric]
 
     for test_type in TEST_TYPES:
         analyzer.test_type_internal = test_type
@@ -754,6 +917,7 @@ def analyze_results_basic(
             )
     return (
         results_raw_tmp,
+        curvature_tmp,
         kendalls_tau_valid_test_tmp,
     )
 
@@ -862,8 +1026,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     results_path = os.path.abspath("../results")
-    if "hebo" in args.results_subfolder:
-        OPTIMIZER = "hebo"
+    if "hebo" in args.results_subfolder or "smac" in args.results_subfolder:
+        if "hebo" in args.results_subfolder:
+            OPTIMIZER = "hebo"
+        elif "smac" in args.results_subfolder:
+            OPTIMIZER = "smac"
         METRICS = ["auc"]
         N_TRIALS = 250
     else:
@@ -900,6 +1067,7 @@ if __name__ == "__main__":
 
     if args.type == "basic":
         results_raw = {"raw": []}
+        curvature = {"curvature": []}
         kendalls_tau_valid_test = {"test": [], "test_retrained": []}
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=args.max_workers
@@ -921,10 +1089,13 @@ if __name__ == "__main__":
                 try:
                     (
                         results_raw_tmp,
+                        curvature_tmp,
                         kendalls_tau_valid_test_tmp,
                     ) = future.result()
                     if results_raw_tmp:
                         results_raw["raw"].append(pd.concat(results_raw_tmp))
+                    if curvature_tmp:
+                        curvature["curvature"].append(pd.concat(curvature_tmp))
                     for test_type in TEST_TYPES:
                         if kendalls_tau_valid_test_tmp[test_type]:
                             kendalls_tau_valid_test[test_type].append(
@@ -941,6 +1112,14 @@ if __name__ == "__main__":
                 index=False,
             )
 
+        if curvature["curvature"]:
+            curvature_tmp = pd.concat(curvature["curvature"])
+            curvature_tmp["optimizer"] = OPTIMIZER
+            curvature_tmp.to_csv(
+                f"../csvs/raw/{partial_file_name}_curvature.csv",
+                index=False,
+            )
+
         for test_type in TEST_TYPES:
             if kendalls_tau_valid_test[test_type]:
                 kendalls_tau_valid_test_tmp = pd.concat(
@@ -951,7 +1130,6 @@ if __name__ == "__main__":
                     f"../csvs/raw/{partial_file_name}_kendalls_tau_valid_test_{test_type}.csv",
                     index=False,
                 )
-
     elif args.type in [
         "post_naive",
     ]:

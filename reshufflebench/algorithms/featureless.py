@@ -23,6 +23,12 @@ class Featureless(Classifier):
         """
         return None
 
+    def get_configspace_search_space(self, **kwargs):
+        """
+        Get the configspace search space.
+        """
+        return None
+
     def get_internal_optuna_search_space(self, **kwargs):
         """
         Get the internal Optuna search space.

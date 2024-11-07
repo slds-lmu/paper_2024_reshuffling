@@ -25,7 +25,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("--default", type=str2bool, required=True)
     parser.add_argument(
-        "--optimizer", type=str, choices=["hebo", "random"], required=True
+        "--optimizer",
+        type=str,
+        choices=["random", "hebo", "smac"],
+        required=True,
     )
     parser.add_argument(
         "--valid_type",
@@ -36,7 +39,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_repeats", type=int, default=None)
     args = parser.parse_args()
 
-    if args.optimizer == "hebo":
+    if args.optimizer in ["hebo", "smac"]:
         n_trials = 250
         if args.valid_type == "cv":
             n_repeats = args.n_repeats

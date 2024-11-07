@@ -1,6 +1,4 @@
-import os
 from abc import ABC, abstractmethod
-from typing import List, Optional
 
 import numpy as np
 
@@ -21,17 +19,11 @@ class PostSelector(ABC):
             "repeatedholdout",
         ],
         supported_reshufflings: list = [True, False],
-        resolution_sparse: bool = False,
-        additional_iterationwise_results: Optional[List[str]] = None,
-        bootstrap_results_path: str = os.path.abspath("../bootstrap_results"),
     ):
         self.id = id
         self.result_analyzer = result_analyzer
         self.supported_valid_types = supported_valid_types
         self.supported_reshufflings = supported_reshufflings
-        self.resolution_sparse = resolution_sparse
-        self.additional_iterationwise_results = additional_iterationwise_results
-        self.bootstrap_results_path = bootstrap_results_path
 
     def select(self, iteration: int, metric: str, **kwargs) -> int:
         """

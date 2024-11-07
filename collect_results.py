@@ -30,6 +30,7 @@ if __name__ == "__main__":
     ]
 
     results_raw = [file for file in files if "results" in file and "raw" in file]
+    curvature = [file for file in files if "curvature" in file]
     kendalls_tau_valid_test = [file for file in files if "kendalls_tau" in file]
     results_post = [file for file in files if "results" in file and "post" in file]
 
@@ -38,6 +39,12 @@ if __name__ == "__main__":
             [pd.read_csv(f"csvs/raw/{file}") for file in results_raw]
         )
         results_raw_csv.to_csv(f"csvs/results_{args.valid_type}.csv", index=False)
+
+    if curvature:
+        curvature_csv = pd.concat(
+            [pd.read_csv(f"csvs/raw/{file}") for file in curvature]
+        )
+        curvature_csv.to_csv(f"csvs/curvature_{args.valid_type}.csv", index=False)
 
     if kendalls_tau_valid_test:
         for type in ["test.csv", "test_retrained.csv"]:

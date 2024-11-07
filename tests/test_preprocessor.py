@@ -35,6 +35,9 @@ class TestClassifier(Classifier):
     def get_hebo_search_space(self, **kwargs):
         return None
 
+    def get_configspace_search_space(self, **kwargs):
+        return None
+
     def get_internal_optuna_search_space(self, **kwargs):
         return None
 

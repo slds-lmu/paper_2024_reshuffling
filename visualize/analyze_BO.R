@@ -15,8 +15,8 @@ scale_colour_colorblind7 = function(.ColorList = 1L:8L, ...) {
   scale_colour_discrete(..., type = colorblind_pal()(8)[.ColorList])
 }
 
-scale_fill = scale_fill_colorblind7(breaks = c("random", "hebo"), labels = c("Random Search", "HEBO"))
-scale_color = scale_colour_colorblind7(breaks = c("random", "hebo"), labels = c("Random Search", "HEBO"))
+scale_fill = scale_fill_colorblind7(breaks = c("random", "hebo", "smac"), labels = c("Random Search", "HEBO", "SMAC3"))
+scale_color = scale_colour_colorblind7(breaks = c("random", "hebo", "smac"), labels = c("Random Search", "HEBO", "SMAC3"))
 
 for (valid_type in c("holdout_02", "repeatedholdout_02_5", "cv_5_1", "cv_5_5")) {
   if (valid_type == "holdout_02") {
@@ -50,8 +50,9 @@ for (valid_type in c("holdout_02", "repeatedholdout_02_5", "cv_5_1", "cv_5_5")) 
   dat[, resampling_orig := as.factor(resampling_orig)]
   dat[, resampling := as.factor(resampling)]
   dat[, reshuffle := as.factor(reshuffle)]
-  dat[, optimizer := factor(optimizer, levels = c("random", "hebo"))]
+  dat[, optimizer := factor(optimizer, levels = c("random", "hebo", "smac"))]
   dat[optimizer == "hebo", method := paste0(method, "_", "hebo")]
+  dat[optimizer == "smac", method := paste0(method, "_", "smac")]
   dat = dat[, c("valid", "test", "data_id", "seed", "classifier", "metric", "train_valid_size", "iteration", "resampling_orig", "resampling", "reshuffle", "method", "optimizer")]
 
   defaults = dat[classifier %in% c("logreg_default", "funnel_mlp_default", "xgboost_default", "catboost_default")]

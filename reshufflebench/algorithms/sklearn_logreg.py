@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 import numpy as np
+from ConfigSpace import ConfigurationSpace, Float
 from hebo.design_space import DesignSpace
 from optuna.distributions import FloatDistribution
 from optuna.trial import Trial
@@ -36,13 +37,23 @@ class LogReg(Classifier):
         hebo_search_space = DesignSpace().parse(hebo_params)
         return hebo_search_space
 
+    def get_configspace_search_space(self, **kwargs):
+        """
+        Get the configspace search space.
+        """
+        cs = ConfigurationSpace(seed=self.seed)
+        C = Float(name="C", bounds=[1e-6, 1e4], log=True)
+        l1_ratio = Float(name="l1_ratio", bounds=[0.0, 1.0])
+        cs.add([C, l1_ratio])
+        return cs
+
     def get_internal_optuna_search_space(self, **kwargs):
         """
         Get the internal Optuna search space.
         """
         internal_optuna_search_space = {
             "C": FloatDistribution(low=1e-6, high=1e4, step=None, log=True),
-            "l1_ratio": FloatDistribution(low=0.0, high=1.0, step=None, log=False),
+            "l1_ratio": FloatDistribution(low=0.0, high=1.0, step=None),
         }
         return internal_optuna_search_space
 
