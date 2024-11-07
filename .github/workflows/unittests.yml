@@ -21,6 +21,7 @@ jobs:
           pip install pymoo==0.6.1.1
           pip install gpytorch==1.11
           pip install HEBO==0.3.5 --no-deps
+          pip install smac==2.2.0
 
       - name: Run pytest
         run: |
