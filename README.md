@@ -6,10 +6,10 @@ Create a python 3.10.6 virtual environment, then install the package and the fol
 
 ```bash
 pip install -e .
-pip install gpytorch>=1.4.0
-pip install pymoo>=0.6.0
-pip install HEBO==0.3.5 --no-deps
-pip install smac==2.2.0
+pip install "gpytorch>=1.4.0"
+pip install "pymoo>=0.6.0"
+pip install "HEBO==0.3.5" --no-deps
+pip install "smac==2.2.0"
 ```
 
 ## Experiments:
@@ -75,23 +75,23 @@ Code in `visualize` is used to visualize analyzed experiment results.
 
 ### Random 5-fold CV
 
-`python create_analyses.py --optimizer=random --valid_type=cv --n_repeats=1 --type=post_naive --max_workers=10 --reshuffle=Both --check_files=False`
+`python create_analyses.py --optimizer=random --valid_type=cv --n_repeats=1 --type=post_naive --max_workers=1 --reshuffle=Both --check_files=False`
 
 ### Random 5x 5-fold CV
 
-`python create_analyses.py --optimizer=random --valid_type=cv_repeated --n_repeats=5 --type=post_naive --max_workers=10 --reshuffle=Both --check_files=False`
+`python create_analyses.py --optimizer=random --valid_type=cv_repeated --n_repeats=5 --type=post_naive --max_workers=1 --reshuffle=Both --check_files=False`
 
 ### Random 5-fold Holdout
 
-`python create_analyses.py --optimizer=random --valid_type=repeatedholdout --n_repeats=5 --type=post_naive_simulate_repeatedholdout --max_workers=10 --reshuffle=Both --check_files=False`
+`python create_analyses.py --optimizer=random --valid_type=repeatedholdout --n_repeats=5 --type=post_naive_simulate_repeatedholdout --max_workers=1 --reshuffle=Both --check_files=False`
 
-`python create_analyses.py --optimizer=random --valid_type=repeatedholdout --n_repeats=4 --type=post_naive_simulate_repeatedholdout --max_workers=10 --reshuffle=Both --check_files=False`
+`python create_analyses.py --optimizer=random --valid_type=repeatedholdout --n_repeats=4 --type=post_naive_simulate_repeatedholdout --max_workers=1 --reshuffle=Both --check_files=False`
 
-`python create_analyses.py --optimizer=random --valid_type=repeatedholdout --n_repeats=3 --type=post_naive_simulate_repeatedholdout --max_workers=10 --reshuffle=Both --check_files=False`
+`python create_analyses.py --optimizer=random --valid_type=repeatedholdout --n_repeats=3 --type=post_naive_simulate_repeatedholdout --max_workers=1 --reshuffle=Both --check_files=False`
 
-`python create_analyses.py --optimizer=random --valid_type=repeatedholdout --n_repeats=2 --type=post_naive_simulate_repeatedholdout --max_workers=10 --reshuffle=Both --check_files=False`
+`python create_analyses.py --optimizer=random --valid_type=repeatedholdout --n_repeats=2 --type=post_naive_simulate_repeatedholdout --max_workers=1 --reshuffle=Both --check_files=False`
 
-`python create_analyses.py --optimizer=random --valid_type=repeatedholdout --n_repeats=1 --type=post_naive_simulate_repeatedholdout --max_workers=10 --reshuffle=Both --check_files=False`
+`python create_analyses.py --optimizer=random --valid_type=repeatedholdout --n_repeats=1 --type=post_naive_simulate_repeatedholdout --max_workers=1 --reshuffle=Both --check_files=False`
 
 ### HEBO Holdout
 
