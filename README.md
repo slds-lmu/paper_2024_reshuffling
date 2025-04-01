@@ -4,7 +4,7 @@ In this repository we release all code to replicate all results, and reproduces 
 
 Create a python 3.10.6 virtual environment, then install the package and the following dependencies:
 
-```bash
+```
 pip install -e .
 pip install "gpytorch>=1.4.0"
 pip install "pymoo>=0.6.0"
@@ -20,7 +20,7 @@ pip install "smac==2.2.0"
 Below is example code to generate experiments (e.g., for CatBoost).
 See `main.py` and the main logic in `reshufflebench`.
 Code in `analyze/` is used to analyze experiment results.
-Code in `visualize` is used to visualize analyzed experiment results.
+Code in `visualize/` is used to visualize analyzed experiment results.
 
 ### Random Holdout
 
